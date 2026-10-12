@@ -1,7 +1,7 @@
 # day32_ex.py
 # 텍스트 분석 기록 앱 UI : 입력 -> 처리 -> 저장 -> 이력 -> 통계
 
-# cd D:\aihuman9\work_space\python\webservice\day32\
+# 경로 : cd D:\aihuman9\work_space\python\webservice\day32\
 # python -m streamlit run day32_ex.py
 
 import uuid # 유일한 식별값 생성 라이브러리
@@ -62,7 +62,6 @@ def main():
                     rid = save_run(
                         title, result, st.session_state['request_key']
                     )
-                    pp('rid===> ', rid)
                     st.session_state['saved'] = True
                     st.success('이미 저장한 결과입니다.' if rid is None else f'기록 {rid} 저장 완료')
                     pp('분석 저장 완료')
