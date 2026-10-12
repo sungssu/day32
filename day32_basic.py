@@ -42,8 +42,6 @@ import uuid
 # logic
 SHIPPING_VERSION = 'shipping-v1'  # 결과를 만든 처리 규칙 버전
 
-
-# 3) 계산 함수는 UI·DB를 참조하지 않도록 작성
 def analyze_weight(label_text, weight_text):
     # 1) 견적 제목 검증 (1~80자)
     label = label_text.strip()
