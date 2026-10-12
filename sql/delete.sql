@@ -1,0 +1,4 @@
+-- delete.sql
+DELETE FROM TEXT_RUNS
+WHERE ID = %s
+RETURNING ID

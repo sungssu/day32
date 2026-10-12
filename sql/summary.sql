@@ -1,0 +1,9 @@
+-- summary.sql
+SELECT
+    -- 전체 행 수
+    COUNT(*) AS TOTAL,
+    -- CHAR_COUNT 합계가 NULL이라면 0으로
+    COALESCE(SUM(CHAR_COUNT), 0) AS TOTAL_CHARS,
+    -- WORD_COUNT 합계가 NULL이라면 1으로
+    COALESCE(ROUND(AVG(WORD_COUNT)), 1) AS AVERAGE_WORD
+FROM TEXT_RUNS
