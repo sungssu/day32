@@ -1,6 +1,7 @@
 # day32_db.py
 # Neon PostgreSQL에 입력과 처리 결과를 함께 저장하는 함수
 
+
 import os
 from pathlib import Path
 import psycopg

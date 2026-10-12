@@ -27,105 +27,108 @@
 #  rule_version VARCHAR(20) NOT NULL
 # );
 
-import re
-from collections import Counter
+# day32_basic.py
+# 배송비 견적 기록
 
 import os
 from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
-from psycopg.types.json import Jsonb # JSON데이터 처리
-from util.print_util import pp, up
 from dotenv import load_dotenv
 import streamlit as st
-
-import uuid # 유일한 식별값 생성 라이브러리
-
+from util.print_util import pp, up
+import uuid
 
 # logic
-shipping_quotes = 'shipping-v1' # 결과를 만든 처리 규칙 버전
+SHIPPING_VERSION = 'shipping-v1'  # 결과를 만든 처리 규칙 버전
 
-def analyze_weight(text):
-    label = text.strip()
+
+# 3) 계산 함수는 UI·DB를 참조하지 않도록 작성
+def analyze_weight(label_text, weight_text):
+    # 1) 견적 제목 검증 (1~80자)
+    label = label_text.strip()
     if not label or len(label) > 80:
         raise ValueError('견적 제목을 1~80자로 입력하세요.')
-    weight = text.strip()
-    if not weight or len(weight) > 20000:
-        raise ValueError('무게를 1~20000g로 입력하세요.')
+
+    # 무게 문자열을 정수로 변환 및 검증 (1~20000g)
+    try:
+        weight = int(weight_text.strip())
+    except ValueError:
+        raise ValueError('무게는 올바른 숫자로 입력하세요.')
+
+    if not (1 <= weight <= 20000):
+        raise ValueError('무게를 1~20000g 사이로 입력하세요.')
+
+    # 2) 1000g 이하 3000원, 초과하면 시작된 1000g 구간마다 1000원 추가
     fee = 3000 + ((weight - 1) // 1000) * 1000
 
-    return{
+    return {
         'label': label,
         'weight': weight,
         'fee': fee,
-        'rule_version': shipping_quotes,
+        'rule_version': SHIPPING_VERSION,
     }
 
-# DB
 
-# local 실행을 위한 .env
+# DB
 load_dotenv()
 
 # sql 파일경로
 SQL_DIR = Path(__file__).resolve().parent / "sql"
 
+
 # SQL 실행 함수
 def execute(name, params=()):
-    # 환경변수에서 데이터베이스URL 획득
     url = os.getenv("DATABASE_URL", '').strip()
     if not url:
         raise ValueError('DATABASE_URL 환경변수를 설정하세요.')
-    # sql 파일의 문자열 획득
     sql = (SQL_DIR / name).read_text(encoding='utf-8')
     with psycopg.connect(
-        url, # 접속 URL
-        connect_timeout=15, # 접속까지 15초는 대기
-        row_factory=dict_row # 행을 딕셔너리로
+            url,
+            connect_timeout=15,
+            row_factory=dict_row
     ) as conn:
-        # sql 실행후 결과를 리스트러 변환
         return conn.execute(sql, params).fetchall()
 
-# 저장
+
+# 4) 저장 함수 (테이블 컬럼: label, weight, fee, rule_version)
 def save_run(result, request_key):
     rows = execute('basic_save.sql', (
-        result['text'],
+        result['label'],
         result['weight'],
         result['fee'],
-        request_key
+        result['rule_version']
     ))
     return rows[0]['id']
 
-# 조회
+
+# 조회 함수
 def get_run(record_id):
     rows = execute('basic_detail.sql', (record_id,))
-    # 조회된 행이 있으면 반환, 그렇지 않으면 None 반환
     return rows[0] if rows else None
 
-# UI
-# 결과 표시 함수
+
+# UI 결과 표시 함수
 def show_result(result):
     left, right = st.columns(2)
     left.metric('무게(g)', f"{result['weight']:,}g")
     right.metric('산정 배송비', f"{result['fee']:,}원")
 
-def main():
 
+def main():
     st.set_page_config(
         page_title='배송비 견적 기록',
         layout='wide'
     )
     st.title('무게에 따른 배송비 견적')
 
-    # session_state에 request_key가 없다면
-    if 'request_key' not in st.session_state: # 요청 식별키
-        # uuid 라이브러리를 활용해서 uuid 생성해 저장
+    if 'request_key' not in st.session_state:
         st.session_state['request_key'] = str(uuid.uuid4())
-    if 'result' not in st.session_state: # 분석결과
+    if 'result' not in st.session_state:
         st.session_state['result'] = None
-    if 'saved' not in st.session_state: # 저장여부
+    if 'saved' not in st.session_state:
         st.session_state['saved'] = False
 
-    # 탭 구성: [견적 산출과 저장, 기록 조회]
     analysis, lookup = st.tabs(['견적 산출과 저장', '기록 조회'])
 
     with analysis:
@@ -136,6 +139,7 @@ def main():
 
         if submitted:
             try:
+                # 1) 입력값 검증 및 계산 수행
                 result = analyze_weight(label_input, weight_input)
                 st.session_state['result'] = result
                 st.session_state['request_key'] = str(uuid.uuid4())
@@ -148,6 +152,7 @@ def main():
             st.subheader(f"견적명: {result['label']}")
             show_result(result)
 
+            # 5) 저장 버튼 및 결과 출력
             if st.button('견적 결과 저장', disabled=st.session_state['saved']):
                 try:
                     rid = save_run(result, st.session_state['request_key'])
@@ -155,7 +160,7 @@ def main():
                     if rid is None:
                         st.warning('이미 저장된 견적 결과입니다.')
                     else:
-                        st.success(f'배송비 견적 기록 {rid} 저장 완료')
+                        st.success(f'배송비 견적 기록 ID: {rid} | 요금: {result["fee"]:,}원 저장 완료')
                         pp('견적 저장 완료')
                 except ValueError as ve:
                     st.warning(str(ve))
@@ -186,18 +191,3 @@ if __name__ == '__main__':
     main()
 
 up(5)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
